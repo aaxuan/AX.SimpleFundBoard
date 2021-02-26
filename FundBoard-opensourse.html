@@ -1,0 +1,168 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Access-Control-Allow-Origin" content="*">
+
+    <title>基金看板</title>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/bignumber.js/9.0.1/bignumber.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.5.1/jquery.slim.min.js"></script>
+
+    <link rel="stylesheet" type="text/css" href="https://www.layuicdn.com/layui/css/layui.css" />
+    <script src="https://www.layuicdn.com/layui/layui.js"></script>
+
+    <style type="text/css">
+        .layui-table-cell {
+            height: auto;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="layui-container">
+
+        <div class="row">
+            <fieldset class="layui-elem-field layui-field-title" style="margin-top: 30px;">
+                <legend>使用须知</legend>
+            </fieldset>
+            <blockquote class="layui-elem-quote">
+                本页面数据来源天天基金数据，需放开浏览器跨域请求。
+                <br />
+                <br />
+                火狐 通过安装扩展 https://addons.mozilla.org/zh-CN/firefox/addon/cors-everywhere/ 开启浏览器跨域请求。
+                <br />
+                chrome 用户在桌面快捷方式目标后添加启动参数 --disable-web-security --user-data-dir=C:\Program Files
+                (x86)\Google\Chrome\Application
+            </blockquote>
+        </div>
+        <div class="row">
+            <fieldset class="layui-elem-field layui-field-title" style="margin-top: 30px;">
+                <legend>估值</legend>
+            </fieldset>
+            <table id="fundboardgz" class="layui-table" lay-size="sm"></table>
+        </div>
+        <div class="row">
+            <fieldset class="layui-elem-field layui-field-title" style="margin-top: 30px;">
+                <legend>净值</legend>
+            </fieldset>
+            <table id="fundboardjz" class="layui-table" lay-size="sm"></table>
+        </div>
+
+    </div>
+    <script>
+        // 将你需要监控的基金放在这就可以
+        // 可以不填写持仓单价和持仓份额
+        // name不会从请求中获取，需要自己填写
+        let fundinfos = [
+            //code 基金编码/ccdj 持仓单价/ccfe 持仓份额/name 名称 
+            { code: "005918", ccdj: new BigNumber(1.3867), ccfe: new BigNumber(360.57), name: "天弘沪深300ETF联接C" },
+        ];
+
+        initData();
+
+
+        function initData() {
+            let i = 0;
+            fundinfos.forEach(item => {
+                // 计算持仓成本价
+                item.ccj = item.ccdj.times(item.ccfe);
+
+                let url = "http://fundgz.1234567.com.cn/js/" + item.code + ".js";
+                axios.get(url).then((resp) => {
+                    let result = resp.data;
+                    //jsonpgz({"jzrq":"2021-02-23","dwjz":"1.5880","gsz":"1.5803","gszzl":"-0.49","gztime":"2021-02-24 15:00"});
+                    result = result.slice(8, -2);
+                    let resultobj = JSON.parse(result);
+                    item.dwjz = new BigNumber(resultobj["dwjz"]);
+                    item.jzrq = resultobj["jzrq"];
+                    item.gsz = new BigNumber(resultobj["gsz"]);
+                    item.gszzl = new BigNumber(resultobj["gszzl"]);
+                    item.gztime = resultobj["gztime"];
+                    //计算净值价/净值盈利
+                    item.jzj = item.dwjz.times(item.ccfe);
+                    item.jzgetmoney = item.jzj.minus(item.ccj);
+                    //计算估值价/估值盈利
+                    item.gzj = item.gsz.times(item.ccfe);
+                    item.getmoney = item.gzj.minus(item.ccj);
+
+                    i++;
+                    if (i == fundinfos.length) { initTable(); }
+
+                }).catch((err) => {
+                    console.error(item.name + " | " + url + " 请求失败")
+                    console.error(err);
+                })
+            });
+        }
+
+        function initTable() {
+            //净值表格
+            layui.use('table', function () {
+                var table = layui.table;
+                table.render({
+                    elem: '#fundboardjz',
+                    data: fundinfos,
+                    cols: [[ //表头
+                        { field: '', title: '序号', type: "numbers" },
+                        { field: 'code', title: '编码', sort: true },
+                        { field: 'name', title: '基金', sort: true },
+                        { field: 'ccj', title: '成本价', templet: function (item) { return item.ccj.toFormat(4); }, sort: true },
+                        { field: 'dwjz', title: '最新净值', templet: function (item) { return item.dwjz.toFormat(4) + "</br><small>" + item.jzrq + "</small>"; }, sort: true },
+                        { field: 'gzj', title: '净值价', templet: function (item) { return item.gzj.toFormat(4); }, sort: true },
+                        {
+                            field: 'jzgetmoney', title: '盈利', templet: function (item) {
+                                let style;
+                                if (item.jzgetmoney.gt(0)) { style = "style='color: red;'"; }
+                                else { style = "style='color: green;'";; }
+                                return "<spen " + style + ">" + item.jzgetmoney + "</spen>";
+                            }, sort: true
+                        },
+                    ]]
+                });
+            });
+
+            //估值表格
+            layui.use('table', function () {
+                var table = layui.table;
+                table.render({
+                    elem: '#fundboardgz',
+                    data: fundinfos,
+                    cols: [[ //表头
+                        { field: '', title: '序号', type: "numbers", sort: true },
+                        { field: 'code', title: '编码', sort: true },
+                        { field: 'name', title: '基金', sort: true },
+                        { field: 'ccj', title: '成本价', templet: function (item) { return item.ccj.toFormat(4); }, sort: true },
+                        { field: 'gsz', title: '估值', templet: function (item) { return item.gsz.toFormat(4) + "</br><small>" + item.gztime + "</small>"; }, sort: true },
+                        {
+                            field: 'gszzl', title: '估增长率', templet: function (item) {
+                                let style;
+                                if (item.gszzl.gt(0)) { style = "style='color: red;'"; }
+                                else { style = "style='color: green;'";; }
+                                return "<spen " + style + ">" + item.gszzl + "% </br ><small>" + item.gztime + "</small></spen>";
+                            }, sort: true
+                        },
+                        { field: 'jzj', title: '估值价', templet: function (item) { return item.jzj.toFormat(4); }, sort: true },
+                        {
+                            field: 'getmoney', title: '盈利', templet: function (item) {
+                                let style;
+                                if (item.getmoney.gt(0)) { style = "style='color: red;'"; }
+                                else { style = "style='color: green;'";; }
+                                return "<spen " + style + ">" + item.getmoney + "</spen>";
+                            }, sort: true
+                        },
+                    ]],
+                });
+            });
+
+        }
+
+    </script>
+</body>
+
+</html>
