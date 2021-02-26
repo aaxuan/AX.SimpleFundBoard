@@ -7,4 +7,4 @@
 
 ps：两个小时写的东西，命名什么的比较随意。不要太在意细节
 
-https://github.com/aaxuan/AX.SimpleFundBoard/blob/main/Snipaste_2021-02-26_11-08-31.png
+![image](https://github.com/aaxuan/AX.SimpleFundBoard/blob/main/Snipaste_2021-02-26_11-08-31.png)
